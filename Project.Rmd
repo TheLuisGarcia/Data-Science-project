@@ -1,0 +1,67 @@
+---
+title: "Project"
+author: "Luis G"
+date: "2025-11-10"
+output: 
+  html_document: 
+    highlight: espresso
+    theme: readable
+---
+# Project Plan: Meteorite Landings 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyr)
+library(dplyr)
+library(stringr)
+```
+
+
+```{r}
+meteroite<- read.csv("~/Downloads/Data Science 1/Project/meteorite-landings.csv")
+
+meteroite <- meteroite %>% 
+  drop_na(mass) %>% 
+  rename(class = recclass)
+
+```
+
+## Source: NASA Open Data ('https://data.nasa.gov/dataset/meteorite-landings')
+## This dataset contains detailed records of over 45,000 meteorites that have been found or observed falling to Earth. 
+
+## The dataset includes the following key variables:
+- name: Official meteorite name
+- id: identification number from NASA
+- nametype: “Valid” is a normal meteoroid. “Relict” is a weathered down meteoroid
+- recclass: Meteorite classification (e.g., H5, L6, Iron, CM2)
+- mass (g): Mass of the meteorite in grams
+- fall: “Fell” (observed fall) or “Found” later
+- year: The year it fell or was found
+- reclat / reclong: Latitude and longitude of discovery site
+- GeoLocation: Combined coordinate or location label
+
+## For my project, I'll explore NASA’s Meteorite Landings dataset. The data shows meteorite discoveries from all over the world, including their size, location, and type. I want to find patterns in when and where meteorites are found and what kinds are most common.
+
+## Here are a few questions I want to answer:
+- 1. Which meteorite types appear most often?
+- 2. Where on Earth have the largest meteorites been found?
+- 3. How has the number of meteorite discoveries changed over time?
+- 4. Which hemisphere has more recorded meteorites?
+- 5. Which countries or regions report the most meteorites?
+- 6. Does latitude affect where meteorites land
+
+```{r}
+meteroite %>% 
+  mutate(
+    type = case_when(
+      str_starts(class, regex("I", ignore_case = TRUE)) ~ "Iron",
+      str_starts(class, regex("P|M", ignore_case = TRUE)) ~ "Stony-Iron",
+      str_starts(class, regex("A|U|E|Lun|Mar|D|Hed|How|Euc", ignore_case = TRUE)) ~ "Achondrite",
+      str_starts(class, regex("H|L|C|R|E", ignore_case = TRUE)) ~ "Stony",
+      TRUE ~ "Other/Unknown"
+    ), .before = 3
+  )
+```
+
