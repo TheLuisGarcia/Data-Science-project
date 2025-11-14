@@ -1,67 +1,336 @@
 ---
-title: "Project"
+title: "Meteorite Landings"
 author: "Luis G"
-date: "2025-11-10"
-output: 
-  html_document: 
-    highlight: espresso
-    theme: readable
+date: "2025-11-13"
+output: html_document
 ---
-# Project Plan: Meteorite Landings 
+
+
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = F)
 ```
 
-```{r}
-library(tidyr)
-library(dplyr)
-library(stringr)
-```
+# Introduction:
 
+#### Source: NASA Open Data ('https://data.nasa.gov/dataset/meteorite-landings')
+#### Every meteorite that reaches Earth carries a piece of our solar system’s history. NASA’s Meteorite Landings dataset compiles thousands of these discoveries. This dataset contains detailed records of over 45,000 meteorites that have been found or observed falling to Earth.
 
-```{r}
-meteroite<- read.csv("~/Downloads/Data Science 1/Project/meteorite-landings.csv")
-
-meteroite <- meteroite %>% 
-  drop_na(mass) %>% 
-  rename(class = recclass)
-
-```
-
-## Source: NASA Open Data ('https://data.nasa.gov/dataset/meteorite-landings')
-## This dataset contains detailed records of over 45,000 meteorites that have been found or observed falling to Earth. 
-
-## The dataset includes the following key variables:
+#### The dataset includes the following key variables:
 - name: Official meteorite name
-- id: identification number from NASA
+- id: Identification number from NASA
 - nametype: “Valid” is a normal meteoroid. “Relict” is a weathered down meteoroid
-- recclass: Meteorite classification (e.g., H5, L6, Iron, CM2)
+- class: Meteorite classification (e.g., H5, L6, CM2)
 - mass (g): Mass of the meteorite in grams
-- fall: “Fell” (observed fall) or “Found” later
+- fall: “Fell” (observed fall) or “Found” later (not observed)
 - year: The year it fell or was found
 - reclat / reclong: Latitude and longitude of discovery site
 - GeoLocation: Combined coordinate or location label
+- type: The main group of which each meteorite is a part of
+  - Stony: Outer crust of asteroids
+  - Iron:	Cores of asteroids
+  - Stony-Iron:	Core-mantle boundary	
+  - Achondrite:	Melted
+  - Unknown/other
 
-## For my project, I'll explore NASA’s Meteorite Landings dataset. The data shows meteorite discoveries from all over the world, including their size, location, and type. I want to find patterns in when and where meteorites are found and what kinds are most common.
+#### Exploring this dataset gives us the chance to uncover patterns in how meteorites fall, what materials they contain, and what they reveal about the formation of planets.
+```{r}
+meteroite<- read.csv("~/Downloads/Data Science 1/Project/meteorite-landings.csv")
+options(scipen = 999)
+head(meteroite)
+```
 
-## Here are a few questions I want to answer:
-- 1. Which meteorite types appear most often?
-- 2. Where on Earth have the largest meteorites been found?
-- 3. How has the number of meteorite discoveries changed over time?
-- 4. Which hemisphere has more recorded meteorites?
-- 5. Which countries or regions report the most meteorites?
-- 6. Does latitude affect where meteorites land
+***
+
+#### Tools:
+- dplyr
+- tidyr
+- stringr
+- plotly
+- maps
+- mapview
+- sf
 
 ```{r}
-meteroite %>% 
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(plotly)
+library(maps)
+library(mapview)
+library(sf)
+```
+
+
+```{r}
+
+meteroite <- meteroite %>% 
+  drop_na(mass) %>% 
+  drop_na(reclat) %>% 
+  rename(class = recclass) %>% 
   mutate(
     type = case_when(
       str_starts(class, regex("I", ignore_case = TRUE)) ~ "Iron",
       str_starts(class, regex("P|M", ignore_case = TRUE)) ~ "Stony-Iron",
       str_starts(class, regex("A|U|E|Lun|Mar|D|Hed|How|Euc", ignore_case = TRUE)) ~ "Achondrite",
       str_starts(class, regex("H|L|C|R|E", ignore_case = TRUE)) ~ "Stony",
-      TRUE ~ "Other/Unknown"
-    ), .before = 3
+      TRUE ~ "Other/Unknown"), .before = 3) %>% 
+  filter(year > 1800) %>% filter(year < 2025)
+```
+
+***
+
+# Objective
+ 
+#### For my project, I'll explore NASA’s Meteorite Landings dataset. The data shows meteorite discoveries from all over the world, including their size, location, and type. I want to find patterns in when and where meteorites are found and what kinds are most common.
+
+#### Here are the questions I want to answer:
+
+- 1. Where on Earth have the largest meteorites been found?
+- 2. Which meteorite types are found most often?
+- 3. How has the number of meteorite discoveries changed over time?
+- 4. Which hemisphere has more recorded meteorites?
+- 5. Does latitude affect where meteorites land
+- 6. Do we find more meteors or are they found beceause we saw them fall?
+
+***
+
+## Where on Earth?!
+
+#### Do most of the meteors land at?
+
+```{r}
+world <- map_data("world")
+
+meteroite_map <- meteroite %>% 
+  filter(
+    !is.na(reclat),
+    !is.na(reclong),
+    reclat  >= -90, reclat <= 90,
+    reclong >= -180, reclong <= 180
   )
+
+meteroite_sf <- st_as_sf(
+  meteroite_map,
+  coords = c("reclong", "reclat"),
+  crs    = 4326
+)
+
+p_stony <- mapview(
+  meteroite_sf[meteroite_sf$type == "Stony", ],
+  col.regions = "red",
+  layer.name  = "Stony"
+)
+
+p_iron <- mapview(
+  meteroite_sf[meteroite_sf$type == "Iron", ],
+  col.regions = "blue",
+  layer.name  = "Iron"
+)
+
+p_ach <- mapview(
+  meteroite_sf[meteroite_sf$type == "Achondrite", ],
+  col.regions = "darkgrey",
+  layer.name  = "Achondrite"
+)
+
+p_stonI <- mapview(
+  meteroite_sf[meteroite_sf$type == "Stony-Iron", ],
+  col.regions = "yellow",
+  layer.name  = "Stony-Iron"
+)
+
+p_other <- mapview(
+  meteroite_sf[meteroite_sf$type == "Other/Unknown", ],
+  col.regions = "green",
+  layer.name  = "Other/Unknown"
+)
+p_stony + p_iron + p_ach + p_other + p_stonI
+
+```
+
+The graph shows us the thousands of points on the world map. Just a few observations we can note that in the more secluded areas like the Amazon Forest, the Russia tundras, and north Canada we are left with little to no data. This doesn't necessarily mean that no meteorites are there, just that it's been harder to explore. We can see and guess where we think is the hot spots for meteorites, but with points on top of points we don't get the full picture, lets take a closer look.
+
+#### Density of the meteor landings
+
+```{r}
+ggplot() +
+  geom_polygon(
+    data = world,
+    aes(x = long, y = lat, group = group),
+    fill = "grey",
+    color = "white"
+  ) +
+  stat_density_2d(
+    data = meteroite_map,
+    aes(x = reclong, y = reclat, fill = ..level.., alpha = ..level..),
+    geom = "polygon",
+    contour = TRUE,
+    bins = 15) +
+  scale_fill_viridis_c(option = "magma") +
+  scale_alpha(range = c(.6, 1), guide = "none") +
+  coord_fixed(1.3) +
+  labs(
+    title = "Density of Meteorite Landings",
+    x = "Longitude",
+    y = "Latitude",
+    fill = "Density"
+  ) +
+  theme_dark()
+```
+
+The density heat map shows us the hot spots for meteorites, at least ones we've found. A few notable locations; West Africa, United Emirates, and Antarctica. 
+
+```{r}
+ggplot() +
+  # base world map
+  geom_polygon(
+    data = world,
+    aes(x = long, y = lat, group = group),
+    fill = "gray90",
+    color = "white"
+  ) +
+  # meteorite points colored by year
+  geom_point(
+    data = meteroite_map,
+    aes(x = reclong, y = reclat, color = year),
+    alpha = 0.5,
+    size = 0.9
+  ) +
+  scale_color_viridis_c(option = "viridis", direction = -1) + 
+  # direction = -1 means newer years = hotter colors
+  coord_fixed(1.3) +
+  labs(
+    title = "Meteorite Landings by Year",
+    x = "Longitude",
+    y = "Latitude",
+    color = "Year"
+  ) +
+  theme_dark()
+```
+
+***
+
+# Which meteorites are found more often
+
+
+```{r}
+meteroite %>% 
+  ggplot(aes(x = year, fill = type)) + 
+  geom_density(alpha = .5) +
+  labs(
+    title = "Densities of meteor types"
+  ) +
+  theme_minimal()
+```
+
+```{r}
+meteroite %>% 
+  ggplot(aes(x = year, fill = fall)) + geom_density(alpha = .5)
+```
+
+```{r}
+meteroite %>% 
+  ggplot(aes(x = type, fill = type)) + geom_bar()
+```
+***
+
+## Northern or Southern? 
+
+#### Here we look at which hemisphere has found the greater amount of meteorites
+```{r}
+meteroite <- meteroite %>%
+  mutate(
+    hemisphere = case_when(
+      reclat > 0  ~ "Northern Hemisphere",
+      reclat < 0  ~ "Southern Hemisphere",
+      reclat == 0 ~ "Equator"))
+
+hemi <- meteroite %>% 
+  drop_na(hemisphere) %>% 
+  count(hemisphere) %>%
+  mutate(
+    pct = n / sum(n) * 100,
+    pct_label = paste0(round(pct, 1), "%")
+  )
+
+ggplot(hemi , aes(x = "", y = pct, fill = hemisphere)) +
+  geom_col(width = 1, color = "white") +
+  coord_polar(theta = "y") +
+  geom_text(
+    aes(label = pct_label),
+    position = position_stack(vjust = 0.5)
+  ) +
+  labs(
+    title = "Meteors by hemisphere",
+    fill = "Hemisphere"
+  ) +
+  theme_void()
+```
+
+#### This is clearly where Antartica takes the lead
+
+```{r}
+meteroite %>%
+  ggplot(aes(x = type, fill = hemisphere)) +
+  geom_bar(position = "dodge") +
+  labs(
+    title = "Meteorite Types by Hemisphere",
+    x = "Meteorite Type",
+    y = "Count",
+    fill = "Hemisphere"
+  ) +
+  theme_minimal()
+```
+
+#### We can see that while the southern hemisphere holds the most when it comes to total meteors since they're the most with stony, the northern hemisphere is the leader when it comes to iron meteorites
+
+***
+
+```{r}
+meteroite %>%
+  group_by(type) %>%
+  summarize(median_mass = median(mass, na.rm = TRUE)) %>%
+  mutate(type = reorder(type, median_mass)) %>%    # sort from low → high
+  ggplot(aes(x = type, y = median_mass, fill = type)) +
+  geom_col() +
+  coord_flip() +   # makes it horizontal
+  labs(
+    title = "Median mass by types",
+    x = "Type",
+    y = "Median mass (g)"
+  )
+  
+```
+
+
+```{r}
+meteroite %>%
+  count(type, fall) %>%                          # count combinations
+  group_by(type) %>%                              # percent within each type
+  mutate(pct = n / sum(n)) %>%                    # convert to percentage
+  ggplot(aes(x = type, y = pct, fill = fall)) +
+  geom_col(position = "dodge") +                   # 100% stacked bar
+  scale_y_continuous(labels = scales::percent) +  # show % instead of decimals
+  labs(
+    title = "Percentage of Fell vs Found Within Each Meteorite Type",
+    x = "Meteorite Type",
+    y = "Percentage",
+    fill = "Fall Status"
+  ) 
+```
+
+***
+
+## The biggest meteor found so far
+
+![](/Users/luis/Downloads/Hoba-Intro.jpg){width = 20%}
+
+
+![](/Users/luis/Downloads/USAGWT18r-305.jpg.opt1118x745o0,0s1118x745.jpg){width = 20%}
+
+
+```{r}
+meteroite %>% 
+  slice_max(mass)
 ```
 
